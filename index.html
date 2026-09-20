@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>发射倒计时协同控制系统</title>
+<link rel="stylesheet" href="styles/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    发射场倒计时协同控制 · LAUNCH CONTROL
+  </div>
+  <div class="clock" id="clock">T-60:00</div>
+  <div class="clock-meta">
+    <span id="statusPill" class="pill">计时中</span>
+    <span>计划点火 <b id="t0Plan">T-00:00</b></span>
+    <span>窗口滑移 <b id="t0Slip">+0s</b></span>
+    <span>分支 <b id="branchName">main</b></span>
+  </div>
+  <div class="sim-controls">
+    <label>仿真速度
+      <select id="speedSel">
+        <option value="1">1×</option>
+        <option value="2">2×</option>
+        <option value="5" selected>5×</option>
+        <option value="20">20×</option>
+        <option value="60">60×</option>
+      </select>
+    </label>
+    <button id="btnPause" class="btn">暂停</button>
+    <button id="btnReset" class="btn btn-ghost">复位</button>
+  </div>
+</header>
+
+<section class="timeline-panel">
+  <div class="panel-title">
+    许可时间轴 —— 任何提前 / 暂停 / 回退都会即时重算各环节许可时刻
+    <span class="hint" id="timelineHint"></span>
+  </div>
+  <div class="timeline" id="timeline"></div>
+  <div class="timeline-axis"><span>-60分</span><span>-50</span><span>-40</span><span>-30</span><span>-20</span><span>-10</span><span>点火</span></div>
+</section>
+
+<main class="grid">
+  <section class="panel panel-stages">
+    <div class="panel-title">阶段流程与指令</div>
+    <div id="stageList" class="stage-list"></div>
+  </section>
+
+  <section class="panel panel-gates">
+    <div class="panel-title">持续互锁判定（温差 / 压力 / 雷电 / 设备 / 通信）</div>
+    <div id="gateList" class="gate-list"></div>
+  </section>
+
+  <section class="panel panel-console">
+    <div class="panel-title">
+      多岗位指令台
+      <span class="hint">同一资源 10 秒内低权限指令将被拦截</span>
+    </div>
+    <div class="post-row">
+      <label>当前岗位
+        <select id="postSel">
+          <option value="commander">指挥员</option>
+          <option value="safety">安全岗</option>
+          <option value="load">加注岗</option>
+          <option value="ground">地面岗</option>
+        </select>
+      </label>
+      <button class="btn btn-warn" data-inject="freeze">冻结倒计时</button>
+      <button class="btn btn-ok" data-inject="resume">恢复倒计时</button>
+    </div>
+    <div class="post-group">
+      <div class="post-group-title">加注岗</div>
+      <div class="btn-row">
+        <button class="btn" data-act="setRate" data-payload="low">降为低速</button>
+        <button class="btn" data-act="setRate" data-payload="mid">切常速</button>
+        <button class="btn" data-act="setRate" data-payload="high">升为高速</button>
+        <button class="btn" data-act="switchLine">切换备用管路</button>
+      </div>
+    </div>
+    <div class="post-group">
+      <div class="post-group-title">地面岗</div>
+      <div class="btn-row">
+        <button class="btn" data-act="isolateGround">隔离 / 恢复互锁</button>
+        <button class="btn" data-act="armDisconnect">脱拔加电</button>
+        <button class="btn" data-act="triggerDisconnect">执行脱拔</button>
+      </div>
+    </div>
+    <div class="post-group">
+      <div class="post-group-title">阶段提前 / 回退</div>
+      <div class="btn-row">
+        <button class="btn" data-act="advance" data-payload="load">提前加注</button>
+        <button class="btn" data-act="advance" data-payload="cond">提前温控</button>
+        <button class="btn" data-act="advance" data-payload="ground">提前地面</button>
+        <button class="btn btn-warn" data-act="rollback" data-payload="load">回退加注</button>
+        <button class="btn btn-warn" data-act="rollback" data-payload="ground">回退地面</button>
+      </div>
+    </div>
+    <div class="post-group">
+      <div class="post-group-title">故障注入（演练）</div>
+      <div class="btn-row">
+        <button class="btn btn-danger" data-inject-ev="leak">泄漏</button>
+        <button class="btn btn-danger" data-inject-ev="storm">雷暴</button>
+        <button class="btn btn-danger" data-inject-ev="comm">通信中断</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel panel-log">
+    <div class="panel-title">
+      事件与影响传播日志
+      <span class="hint" id="logMode"></span>
+    </div>
+    <div id="eventLog" class="event-log"></div>
+  </section>
+
+  <section class="panel panel-branches">
+    <div class="panel-title">
+      可回放时间分支
+      <span class="hint">处置决策生成独立分支，真实服务仍停留真实阶段</span>
+    </div>
+    <div id="branchList" class="branch-list"></div>
+    <div id="replayBar" class="replay-bar hidden">
+      <span id="replayTitle"></span>
+      <div class="replay-controls">
+        <button class="btn btn-small" id="replayStep">单步</button>
+        <button class="btn btn-small" id="replayPlay">播放</button>
+        <button class="btn btn-small btn-ghost" id="replayExit">返回实时</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="incidentModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-title" id="incidentTitle"></div>
+    <div class="modal-body">
+      倒计时仍在运行，但相关许可已被扣留。请在 T-60 决策点之前选择处置方式；每个选择都会生成一条可回放的时间分支。
+    </div>
+    <div id="incidentOptions" class="incident-options"></div>
+  </div>
+</div>
+
+<div id="impactModal" class="modal hidden">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-title">动作已阻止 · 影响传播</div>
+    <div class="modal-body" id="impactBody"></div>
+    <div class="impact-list" id="impactList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="impactClose">知道了</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/engine.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

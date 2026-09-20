@@ -1,0 +1,9 @@
+{
+  "name": "launch-countdown-control",
+  "version": "1.0.0",
+  "description": "火箭发射倒计时协同控制仿真：加注/温控/地面设备/撤离/天气统一许可时间轴，含互锁、影响传播、时间分支回放",
+  "private": true,
+  "scripts": {
+    "test": "node tests/engine.test.js"
+  }
+}
